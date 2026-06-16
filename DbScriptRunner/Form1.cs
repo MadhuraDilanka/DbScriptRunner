@@ -26,6 +26,16 @@ public partial class Form1 : Form
         await RunAsync(dryRun: false);
     }
 
+    private async void btnLoadBranches_Click(object sender, EventArgs e)
+    {
+        await LoadBranchesAsync();
+    }
+
+    private async void btnRunResults_Click(object sender, EventArgs e)
+    {
+        await RunResultQueriesAsync();
+    }
+
     private async void btnPreview_Click(object sender, EventArgs e)
     {
         await RunAsync(dryRun: true);
@@ -87,22 +97,112 @@ public partial class Form1 : Form
         }
     }
 
+    private async Task LoadBranchesAsync()
+    {
+        ToggleRunning(true);
+        txtLog.Clear();
+        _runCancellation = new CancellationTokenSource();
+
+        try
+        {
+            var connectionString = txtConnectionString.Text.Trim();
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                throw new InvalidOperationException("Connection string is required.");
+            }
+
+            var branches = await new QueryResultService().LoadBranchesAsync(
+                connectionString,
+                ReadCommandTimeout(),
+                _runCancellation.Token);
+
+            cboBranch.Items.Clear();
+            cboBranch.Items.AddRange(branches.Cast<object>().ToArray());
+
+            if (cboBranch.Items.Count > 0)
+            {
+                cboBranch.SelectedIndex = 0;
+            }
+
+            Log($"Loaded {branches.Count} branch(es).");
+        }
+        catch (OperationCanceledException)
+        {
+            Log("Load branches cancelled.");
+        }
+        catch (Exception ex)
+        {
+            Log("ERROR: " + ex.Message);
+        }
+        finally
+        {
+            _runCancellation.Dispose();
+            _runCancellation = null;
+            ToggleRunning(false);
+        }
+    }
+
+    private async Task RunResultQueriesAsync()
+    {
+        ToggleRunning(true);
+        txtLog.Clear();
+        _runCancellation = new CancellationTokenSource();
+
+        try
+        {
+            var branchName = cboBranch.Text.Trim();
+            if (string.IsNullOrWhiteSpace(branchName))
+            {
+                throw new InvalidOperationException("Select a branch first.");
+            }
+
+            var options = ReadOptions(dryRun: false);
+            var results = await new QueryResultService().LoadResultsAsync(
+                options.ConnectionString,
+                options.SourceTables,
+                options.DocumentTables,
+                branchName,
+                options.CommandTimeoutSeconds,
+                _runCancellation.Token);
+
+            gridDuplicateData.DataSource = results.DuplicateData;
+            gridMissingDocuments.DataSource = results.MissingDocuments;
+
+            Log($"Duplicated data rows: {results.DuplicateData.Rows.Count}");
+            Log($"Missing documents rows: {results.MissingDocuments.Rows.Count}");
+        }
+        catch (OperationCanceledException)
+        {
+            Log("Result query cancelled.");
+        }
+        catch (Exception ex)
+        {
+            Log("ERROR: " + ex.Message);
+        }
+        finally
+        {
+            _runCancellation.Dispose();
+            _runCancellation = null;
+            ToggleRunning(false);
+        }
+    }
+
     private ScriptRunnerOptions ReadOptions(bool dryRun)
     {
-        var timeout = int.TryParse(txtCommandTimeout.Text.Trim(), out var parsedTimeout) ? parsedTimeout : 0;
-        if (timeout <= 0)
-        {
-            timeout = 0;
-        }
-
         return new ScriptRunnerOptions(
             txtConnectionString.Text.Trim(),
             txtScriptsFolder.Text.Trim(),
             ParseLines(txtSourceTables.Text),
             ParseLines(txtDocumentTables.Text),
-            timeout,
+            ReadCommandTimeout(),
             chkTransaction.Checked,
             dryRun);
+    }
+
+    private int ReadCommandTimeout()
+    {
+        var timeout = int.TryParse(txtCommandTimeout.Text.Trim(), out var parsedTimeout) ? parsedTimeout : 0;
+        return timeout <= 0 ? 0 : timeout;
     }
 
     private static IReadOnlyList<string> ParseLines(string text)
@@ -117,6 +217,8 @@ public partial class Form1 : Form
     {
         btnRun.Enabled = !isRunning;
         btnPreview.Enabled = !isRunning;
+        btnLoadBranches.Enabled = !isRunning;
+        btnRunResults.Enabled = !isRunning;
         btnCancel.Enabled = isRunning;
         btnBrowseScripts.Enabled = !isRunning;
         UseWaitCursor = isRunning;
