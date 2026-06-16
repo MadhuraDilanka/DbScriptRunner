@@ -62,7 +62,7 @@ partial class Form1
         txtConnectionString.PlaceholderText = "Server=.;Database=Enadoc12688B9B38A4000;Trusted_Connection=True;TrustServerCertificate=True;";
         txtConnectionString.Size = new Size(812, 27);
         txtConnectionString.TabIndex = 1;
-        txtConnectionString.Text = "Server=4.194.128.51,1433;Database=Enadoc12688B9B38A4000;User ID=sa;Password=Alctraz56#$2\r\n;TrustServerCertificate=True;";
+        txtConnectionString.Text = "Server=4.194.128.51,1433;Database=Enadoc12688B9B38A4000;User ID=sa;Password=Alctraz56#$\r\n;TrustServerCertificate=True;";
         // 
         // lblScriptsFolder
         // 
